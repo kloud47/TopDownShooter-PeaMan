@@ -1,18 +1,27 @@
 using System;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 
 public class PlayerControls : MonoBehaviour
 {
-    [Header("Movement Info")]
+    [Header("Movement Info")] 
     [SerializeField] private float walkSpeed;
-    
+    [SerializeField] private float runSpeed;
+    [SerializeField] private float gravityScale = 9.81f;
+    [Header("Aim Info")] 
+    [SerializeField] private LayerMask aimLayerMask;
+    [SerializeField] private Transform aim;
+
+    private float speed;
+    private bool isRunning;
+    private float verticalVelocity;
     private Player controls;
     private CharacterController characterController;
     private Vector3 moveDirection;
     private Vector2 movementInput;
-    private Vector2 aimInput; 
+    private Vector2 aimInput;
+    private Vector3 lookingDirection;
+    private Animator animator;
 
     private void Awake()
     {
@@ -24,26 +33,66 @@ public class PlayerControls : MonoBehaviour
         
         controls.Character.Aim.performed += context => aimInput = context.ReadValue<Vector2>();
         controls.Character.Aim.canceled += context => aimInput = Vector2.zero;
+        
+        controls.Character.Run.performed += context => isRunning = true;
+        controls.Character.Run.canceled += context => isRunning = false;
     }
 
     private void Start()
     {
         characterController = GetComponent<CharacterController>();
+        animator = GetComponentInChildren<Animator>();
+    }
+
+    private void AnimatorControllers()
+    {
+        float xVelocity = Vector3.Dot(moveDirection.normalized, transform.right);
+        float zVelocity = Vector3.Dot(moveDirection.normalized, transform.forward);
+        animator.SetFloat("xVelocity", xVelocity, .1f, Time.deltaTime);
+        animator.SetFloat("zVelocity", zVelocity, .1f, Time.deltaTime);
+        animator.SetBool("isRunning", isRunning);
     }
 
     private void Update()
     {
         ApplyMovement();
+        AimTowardsMouse();
+        AnimatorControllers();
+    }
+
+    private void AimTowardsMouse()
+    {
+        Ray ray = Camera.main.ScreenPointToRay(aimInput);
+        // Ray from camera main will hit the obstacles or ground and this will cause character to look in that direction
+        if (Physics.Raycast(ray, out var hitInfo, Mathf.Infinity, aimLayerMask))// layermask is used to provide collision interaction Info.
+        {
+            lookingDirection = hitInfo.point - transform.position;
+            lookingDirection.y = 0f;
+            lookingDirection.Normalize();
+            transform.forward = lookingDirection;
+            aim.position = new Vector3(hitInfo.point.x, hitInfo.point.y, hitInfo.point.z);
+        }
     }
 
     private void ApplyMovement()
     {
         moveDirection = new Vector3(movementInput.x, 0, movementInput.y);
+        ApplyGravity();
 
         if (moveDirection.magnitude > 0)
         {
             characterController.Move(walkSpeed * moveDirection * Time.deltaTime);
         }
+    }
+
+    private void ApplyGravity()
+    {
+        if (!characterController.isGrounded)
+        {
+            verticalVelocity -= gravityScale * Time.deltaTime;
+            moveDirection.y = verticalVelocity;
+        }
+        else verticalVelocity = -.5f;
     }
 
     private void OnEnable()
