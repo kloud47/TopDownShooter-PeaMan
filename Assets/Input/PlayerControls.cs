@@ -13,7 +13,7 @@ public class PlayerControls : MonoBehaviour
     [SerializeField] private Transform aim;
 
     private float speed;
-    private bool isRunning;
+    public bool isRunning;
     private float verticalVelocity;
     private Player controls;
     private CharacterController characterController;
@@ -28,20 +28,36 @@ public class PlayerControls : MonoBehaviour
         controls = new Player();
 
         // Binding all the inputs to the player controller:
+        AssignInputMethod();
+    }
+
+    private void AssignInputMethod()
+    {
         controls.Character.Movement.performed += context => movementInput = context.ReadValue<Vector2>();
         controls.Character.Movement.canceled += context => movementInput = Vector2.zero;
         
         controls.Character.Aim.performed += context => aimInput = context.ReadValue<Vector2>();
         controls.Character.Aim.canceled += context => aimInput = Vector2.zero;
+
+        controls.Character.Run.performed += context =>
+        {
+            speed = runSpeed;
+            isRunning = true;
+        };
         
-        controls.Character.Run.performed += context => isRunning = true;
-        controls.Character.Run.canceled += context => isRunning = false;
+        controls.Character.Run.canceled += context =>
+        {
+            speed = walkSpeed;
+            isRunning = false;
+        };
     }
 
     private void Start()
     {
         characterController = GetComponent<CharacterController>();
         animator = GetComponentInChildren<Animator>();
+
+        speed = walkSpeed;
     }
 
     private void AnimatorControllers()
@@ -50,7 +66,9 @@ public class PlayerControls : MonoBehaviour
         float zVelocity = Vector3.Dot(moveDirection.normalized, transform.forward);
         animator.SetFloat("xVelocity", xVelocity, .1f, Time.deltaTime);
         animator.SetFloat("zVelocity", zVelocity, .1f, Time.deltaTime);
-        animator.SetBool("isRunning", isRunning);
+
+        bool playRunningAnimation = isRunning && moveDirection.magnitude > 0;
+        animator.SetBool("IsRunning", playRunningAnimation);
     }
 
     private void Update()
@@ -81,7 +99,7 @@ public class PlayerControls : MonoBehaviour
 
         if (moveDirection.magnitude > 0)
         {
-            characterController.Move(walkSpeed * moveDirection * Time.deltaTime);
+            characterController.Move(speed * moveDirection * Time.deltaTime);
         }
     }
 
